@@ -10,7 +10,10 @@ import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
+import Migration "migration";
 
+// Persistent State and Migrations
+(with migration = Migration.run)
 actor {
   // Persistent Counters for IDs
   var classIdCounter = 0;
@@ -95,9 +98,6 @@ actor {
 
   // Public Methods
   public shared ({ caller }) func registerClass(name : Text, year : Text) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can register classes");
-    };
     let classId = classIdCounter;
     classIdCounter += 1;
     let classRecord : ClassRecord = {
