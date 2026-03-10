@@ -93,16 +93,16 @@ export interface PeriodInput {
     date: string;
     summaryPrimary: string;
     summarySecondary: string;
-    classId: bigint;
     periodNumber: bigint;
+    courseId: bigint;
 }
-export interface ClassRecord {
+export type Time = bigint;
+export interface CourseRecord {
     id: bigint;
     name: string;
     createdAt: Time;
     year: string;
 }
-export type Time = bigint;
 export interface UserProfile {
     name: string;
 }
@@ -112,8 +112,8 @@ export interface PeriodRecord {
     createdAt: Time;
     summaryPrimary: string;
     summarySecondary: string;
-    classId: bigint;
     periodNumber: bigint;
+    courseId: bigint;
 }
 export enum UserRole {
     admin = "admin",
@@ -124,16 +124,18 @@ export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     addPeriod(input: PeriodInput): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    deleteCourse(courseId: bigint): Promise<void>;
+    getAllCourses(): Promise<Array<CourseRecord>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
-    getClass(classId: bigint): Promise<ClassRecord>;
-    getPeriodsForDate(classId: bigint, date: string): Promise<Array<PeriodRecord>>;
+    getCourse(courseId: bigint): Promise<CourseRecord | null>;
+    getPeriodsForDate(courseId: bigint, date: string): Promise<Array<PeriodRecord>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
-    registerClass(name: string, year: string): Promise<bigint>;
+    registerCourse(name: string, year: string): Promise<bigint>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
 }
-import type { UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
+import type { CourseRecord as _CourseRecord, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
@@ -178,6 +180,34 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async deleteCourse(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteCourse(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteCourse(arg0);
+            return result;
+        }
+    }
+    async getAllCourses(): Promise<Array<CourseRecord>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllCourses();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllCourses();
+            return result;
+        }
+    }
     async getCallerUserProfile(): Promise<UserProfile | null> {
         if (this.processError) {
             try {
@@ -206,18 +236,18 @@ export class Backend implements backendInterface {
             return from_candid_UserRole_n4(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getClass(arg0: bigint): Promise<ClassRecord> {
+    async getCourse(arg0: bigint): Promise<CourseRecord | null> {
         if (this.processError) {
             try {
-                const result = await this.actor.getClass(arg0);
-                return result;
+                const result = await this.actor.getCourse(arg0);
+                return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getClass(arg0);
-            return result;
+            const result = await this.actor.getCourse(arg0);
+            return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
         }
     }
     async getPeriodsForDate(arg0: bigint, arg1: string): Promise<Array<PeriodRecord>> {
@@ -262,17 +292,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async registerClass(arg0: string, arg1: string): Promise<bigint> {
+    async registerCourse(arg0: string, arg1: string): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.registerClass(arg0, arg1);
+                const result = await this.actor.registerCourse(arg0, arg1);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.registerClass(arg0, arg1);
+            const result = await this.actor.registerCourse(arg0, arg1);
             return result;
         }
     }
@@ -295,6 +325,9 @@ function from_candid_UserRole_n4(_uploadFile: (file: ExternalBlob) => Promise<Ui
     return from_candid_variant_n5(_uploadFile, _downloadFile, value);
 }
 function from_candid_opt_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_CourseRecord]): CourseRecord | null {
     return value.length === 0 ? null : value[0];
 }
 function from_candid_variant_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {

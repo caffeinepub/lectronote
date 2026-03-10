@@ -10,11 +10,32 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAdmin } from "@/context/AdminContext";
 import { useClass } from "@/context/ClassContext";
-import { useLoginClass, useRegisterClass } from "@/hooks/useQueries";
+import { useLoginCourse, useRegisterCourse } from "@/hooks/useQueries";
+import {
+  addToRegistry,
+  decodeClassId,
+  encodeClassId,
+  isDuplicate,
+} from "@/utils/classRegistry";
 import { useNavigate } from "@tanstack/react-router";
-import { BookOpen, CheckCircle2, Copy, Loader2, Zap } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  Copy,
+  Loader2,
+  Shield,
+  Zap,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -22,6 +43,7 @@ import { toast } from "sonner";
 export function LoginPage() {
   const navigate = useNavigate();
   const { login } = useClass();
+  const { adminLogin } = useAdmin();
 
   // Login state
   const [loginClassId, setLoginClassId] = useState("");
@@ -30,17 +52,27 @@ export function LoginPage() {
   // Register state
   const [className, setClassName] = useState("");
   const [classYear, setClassYear] = useState("");
+  const [studyingYear, setStudyingYear] = useState("");
   const [registeredId, setRegisteredId] = useState<bigint | null>(null);
+  const [registeredDisplayId, setRegisteredDisplayId] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const loginMutation = useLoginClass();
-  const registerMutation = useRegisterClass();
+  // Admin login state
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminError, setAdminError] = useState("");
+  const [adminLoading, setAdminLoading] = useState(false);
+
+  const loginMutation = useLoginCourse();
+  const registerMutation = useRegisterCourse();
+
+  // ─── Class Login ───────────────────────────────────────────
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
 
-    const trimmed = loginClassId.trim();
+    const trimmed = loginClassId.trim().toUpperCase();
     if (!trimmed) {
       setLoginError("Please enter a Class ID");
       return;
@@ -48,9 +80,11 @@ export function LoginPage() {
 
     let classId: bigint;
     try {
-      classId = BigInt(trimmed);
+      classId = decodeClassId(trimmed);
     } catch {
-      setLoginError("Invalid Class ID format");
+      setLoginError(
+        "Invalid Class ID format. Please enter your 8-character alphanumeric Class ID.",
+      );
       return;
     }
 
@@ -65,22 +99,41 @@ export function LoginPage() {
     });
   };
 
+  // ─── Class Registration ────────────────────────────────────
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const trimmedName = className.trim();
     const trimmedYear = classYear.trim();
 
-    if (!trimmedName || !trimmedYear) {
+    if (!trimmedName || !trimmedYear || !studyingYear) {
       toast.error("Please fill in all fields");
       return;
     }
 
+    const combinedYear = `${trimmedYear} · ${studyingYear}`;
+
+    // Duplicate check
+    if (isDuplicate(trimmedName, combinedYear)) {
+      toast.error("A class with this name and year is already registered.");
+      return;
+    }
+
     registerMutation.mutate(
-      { name: trimmedName, year: trimmedYear },
+      { name: trimmedName, year: combinedYear },
       {
         onSuccess: (newId) => {
+          const displayId = encodeClassId(newId);
+          addToRegistry({
+            backendId: newId.toString(),
+            displayId,
+            name: trimmedName,
+            year: combinedYear,
+            createdAt: Date.now(),
+          });
           setRegisteredId(newId);
+          setRegisteredDisplayId(displayId);
           toast.success("Class registered successfully!");
         },
         onError: () => {
@@ -91,11 +144,31 @@ export function LoginPage() {
   };
 
   const copyClassId = async () => {
-    if (registeredId === null) return;
-    await navigator.clipboard.writeText(registeredId.toString());
+    if (!registeredDisplayId) return;
+    await navigator.clipboard.writeText(registeredDisplayId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast.success("Class ID copied to clipboard!");
+  };
+
+  // ─── Admin Login ───────────────────────────────────────────
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminError("");
+    setAdminLoading(true);
+
+    // Simulate slight async for UX
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const success = adminLogin(adminEmail.trim(), adminPassword);
+    setAdminLoading(false);
+
+    if (success) {
+      navigate({ to: "/admin" });
+    } else {
+      setAdminError("Invalid admin credentials.");
+    }
   };
 
   return (
@@ -136,24 +209,35 @@ export function LoginPage() {
         >
           <Tabs defaultValue="login" className="w-full">
             <TabsList
-              className="grid w-full grid-cols-2 mb-6 h-11"
+              className="grid w-full grid-cols-3 mb-6 h-11"
               data-ocid="auth.tab"
             >
               <TabsTrigger
                 value="login"
-                className="font-medium"
+                className="font-medium text-xs sm:text-sm"
                 data-ocid="auth.login.tab"
               >
-                <BookOpen className="h-4 w-4 mr-2" />
-                Login with Class ID
+                <BookOpen className="h-4 w-4 mr-1.5 shrink-0" />
+                <span className="hidden sm:inline">Login</span>
+                <span className="sm:hidden">Login</span>
               </TabsTrigger>
               <TabsTrigger
                 value="register"
-                className="font-medium"
+                className="font-medium text-xs sm:text-sm"
                 data-ocid="auth.register.tab"
               >
-                <Zap className="h-4 w-4 mr-2" />
-                Register New Class
+                <Zap className="h-4 w-4 mr-1.5 shrink-0" />
+                <span className="hidden sm:inline">Register</span>
+                <span className="sm:hidden">Register</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="admin"
+                className="font-medium text-xs sm:text-sm"
+                data-ocid="auth.admin.tab"
+              >
+                <Shield className="h-4 w-4 mr-1.5 shrink-0" />
+                <span className="hidden sm:inline">Admin</span>
+                <span className="sm:hidden">Admin</span>
               </TabsTrigger>
             </TabsList>
 
@@ -176,17 +260,17 @@ export function LoginPage() {
                       <Input
                         id="classId"
                         type="text"
-                        inputMode="numeric"
-                        placeholder="Enter your Class ID (e.g. 12345)"
+                        placeholder="Enter your 8-character Class ID (e.g. AB12CD34)"
                         value={loginClassId}
                         onChange={(e) => {
                           setLoginClassId(e.target.value);
                           setLoginError("");
                         }}
                         data-ocid="login.input"
-                        className="h-11 font-mono text-base"
+                        className="h-11 font-mono text-base tracking-wider"
                         autoComplete="off"
                         disabled={loginMutation.isPending}
+                        maxLength={8}
                       />
                     </div>
 
@@ -245,8 +329,8 @@ export function LoginPage() {
                           <p className="text-sm text-muted-foreground mb-1">
                             Your Class ID
                           </p>
-                          <p className="font-mono font-bold text-3xl text-foreground tracking-wider">
-                            {registeredId.toString()}
+                          <p className="font-mono font-bold text-3xl text-foreground tracking-[0.2em]">
+                            {registeredDisplayId}
                           </p>
                         </div>
                         <p className="text-xs text-muted-foreground">
@@ -287,17 +371,10 @@ export function LoginPage() {
                         variant="default"
                         className="w-full"
                         onClick={() => {
-                          const {
-                            classId,
-                            className: name,
-                            classYear: year,
-                          } = {
-                            classId: registeredId,
-                            className,
-                            classYear,
-                          };
-                          login(classId, name, year);
-                          navigate({ to: "/dashboard" });
+                          if (registeredId !== null) {
+                            login(registeredId, className, classYear);
+                            navigate({ to: "/dashboard" });
+                          }
                         }}
                         data-ocid="register.goto_dashboard.button"
                       >
@@ -309,8 +386,10 @@ export function LoginPage() {
                         className="w-full"
                         onClick={() => {
                           setRegisteredId(null);
+                          setRegisteredDisplayId("");
                           setClassName("");
                           setClassYear("");
+                          setStudyingYear("");
                           registerMutation.reset();
                         }}
                         data-ocid="register.reset.button"
@@ -348,6 +427,30 @@ export function LoginPage() {
                         />
                       </div>
 
+                      <div className="space-y-2">
+                        <Label htmlFor="reg-studying-year">Studying Year</Label>
+                        <Select
+                          value={studyingYear}
+                          onValueChange={setStudyingYear}
+                          disabled={registerMutation.isPending}
+                        >
+                          <SelectTrigger
+                            id="reg-studying-year"
+                            className="h-11"
+                            data-ocid="register.studying_year.select"
+                          >
+                            <SelectValue placeholder="Select year of study" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1st Year">1st Year</SelectItem>
+                            <SelectItem value="2nd Year">2nd Year</SelectItem>
+                            <SelectItem value="3rd Year">3rd Year</SelectItem>
+                            <SelectItem value="4th Year">4th Year</SelectItem>
+                            <SelectItem value="5th Year">5th Year</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
                       {registerMutation.isError && (
                         <Alert
                           variant="destructive"
@@ -376,6 +479,96 @@ export function LoginPage() {
                       </Button>
                     </form>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── Admin Login Tab ── */}
+            <TabsContent value="admin" className="animate-slide-up">
+              <Card className="shadow-elevated border-border/60">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="h-10 w-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
+                      <img
+                        src="/assets/generated/admin-shield-logo-transparent.dim_200x200.png"
+                        alt="Admin"
+                        className="h-6 w-6 object-contain"
+                      />
+                    </div>
+                    <CardTitle className="font-display text-xl">
+                      Admin Login
+                    </CardTitle>
+                  </div>
+                  <CardDescription>
+                    Restricted access. Admin credentials required.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleAdminLogin} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-email">Email</Label>
+                      <Input
+                        id="admin-email"
+                        type="email"
+                        placeholder="admin@example.com"
+                        value={adminEmail}
+                        onChange={(e) => {
+                          setAdminEmail(e.target.value);
+                          setAdminError("");
+                        }}
+                        data-ocid="admin_login.email.input"
+                        className="h-11"
+                        autoComplete="email"
+                        disabled={adminLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-password">Password</Label>
+                      <Input
+                        id="admin-password"
+                        type="password"
+                        placeholder="Enter admin password"
+                        value={adminPassword}
+                        onChange={(e) => {
+                          setAdminPassword(e.target.value);
+                          setAdminError("");
+                        }}
+                        data-ocid="admin_login.password.input"
+                        className="h-11"
+                        autoComplete="current-password"
+                        disabled={adminLoading}
+                      />
+                    </div>
+
+                    {adminError && (
+                      <Alert
+                        variant="destructive"
+                        data-ocid="admin_login.error_state"
+                      >
+                        <AlertDescription>{adminError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    <Button
+                      type="submit"
+                      className="w-full h-11 font-semibold bg-amber-600 hover:bg-amber-700 text-white"
+                      disabled={adminLoading}
+                      data-ocid="admin_login.submit_button"
+                    >
+                      {adminLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Verifying...
+                        </>
+                      ) : (
+                        <>
+                          <Shield className="mr-2 h-4 w-4" />
+                          Login as Admin
+                        </>
+                      )}
+                    </Button>
+                  </form>
                 </CardContent>
               </Card>
             </TabsContent>

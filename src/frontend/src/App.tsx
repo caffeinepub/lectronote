@@ -1,5 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
+import { AdminProvider } from "@/context/AdminContext";
 import { ClassProvider } from "@/context/ClassContext";
+import { AdminPage } from "@/pages/AdminPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { LoginPage } from "@/pages/LoginPage";
 import {
@@ -25,7 +27,17 @@ const dashboardRoute = createRoute({
   component: DashboardPage,
 });
 
-const routeTree = rootRoute.addChildren([loginRoute, dashboardRoute]);
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin",
+  component: AdminPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  loginRoute,
+  dashboardRoute,
+  adminRoute,
+]);
 
 const router = createRouter({
   routeTree,
@@ -42,9 +54,11 @@ declare module "@tanstack/react-router" {
 
 export default function App() {
   return (
-    <ClassProvider>
-      <RouterProvider router={router} />
-      <Toaster richColors position="top-right" />
-    </ClassProvider>
+    <AdminProvider>
+      <ClassProvider>
+        <RouterProvider router={router} />
+        <Toaster richColors position="top-right" />
+      </ClassProvider>
+    </AdminProvider>
   );
 }

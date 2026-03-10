@@ -10,7 +10,7 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface ClassRecord {
+export interface CourseRecord {
   'id' : bigint,
   'name' : string,
   'createdAt' : Time,
@@ -20,8 +20,8 @@ export interface PeriodInput {
   'date' : string,
   'summaryPrimary' : string,
   'summarySecondary' : string,
-  'classId' : bigint,
   'periodNumber' : bigint,
+  'courseId' : bigint,
 }
 export interface PeriodRecord {
   'id' : bigint,
@@ -29,8 +29,8 @@ export interface PeriodRecord {
   'createdAt' : Time,
   'summaryPrimary' : string,
   'summarySecondary' : string,
-  'classId' : bigint,
   'periodNumber' : bigint,
+  'courseId' : bigint,
 }
 export type Time = bigint;
 export interface UserProfile { 'name' : string }
@@ -41,13 +41,15 @@ export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addPeriod' : ActorMethod<[PeriodInput], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'deleteCourse' : ActorMethod<[bigint], undefined>,
+  'getAllCourses' : ActorMethod<[], Array<CourseRecord>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  'getClass' : ActorMethod<[bigint], ClassRecord>,
+  'getCourse' : ActorMethod<[bigint], [] | [CourseRecord]>,
   'getPeriodsForDate' : ActorMethod<[bigint, string], Array<PeriodRecord>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
-  'registerClass' : ActorMethod<[string, string], bigint>,
+  'registerCourse' : ActorMethod<[string, string], bigint>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

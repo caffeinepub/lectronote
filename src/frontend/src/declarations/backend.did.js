@@ -12,39 +12,41 @@ export const PeriodInput = IDL.Record({
   'date' : IDL.Text,
   'summaryPrimary' : IDL.Text,
   'summarySecondary' : IDL.Text,
-  'classId' : IDL.Nat,
   'periodNumber' : IDL.Nat,
+  'courseId' : IDL.Nat,
 });
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
-export const UserProfile = IDL.Record({ 'name' : IDL.Text });
 export const Time = IDL.Int;
-export const ClassRecord = IDL.Record({
+export const CourseRecord = IDL.Record({
   'id' : IDL.Nat,
   'name' : IDL.Text,
   'createdAt' : Time,
   'year' : IDL.Text,
 });
+export const UserProfile = IDL.Record({ 'name' : IDL.Text });
 export const PeriodRecord = IDL.Record({
   'id' : IDL.Nat,
   'date' : IDL.Text,
   'createdAt' : Time,
   'summaryPrimary' : IDL.Text,
   'summarySecondary' : IDL.Text,
-  'classId' : IDL.Nat,
   'periodNumber' : IDL.Nat,
+  'courseId' : IDL.Nat,
 });
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addPeriod' : IDL.Func([PeriodInput], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'deleteCourse' : IDL.Func([IDL.Nat], [], []),
+  'getAllCourses' : IDL.Func([], [IDL.Vec(CourseRecord)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-  'getClass' : IDL.Func([IDL.Nat], [ClassRecord], ['query']),
+  'getCourse' : IDL.Func([IDL.Nat], [IDL.Opt(CourseRecord)], ['query']),
   'getPeriodsForDate' : IDL.Func(
       [IDL.Nat, IDL.Text],
       [IDL.Vec(PeriodRecord)],
@@ -56,7 +58,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-  'registerClass' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
+  'registerCourse' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
 });
 
@@ -67,39 +69,41 @@ export const idlFactory = ({ IDL }) => {
     'date' : IDL.Text,
     'summaryPrimary' : IDL.Text,
     'summarySecondary' : IDL.Text,
-    'classId' : IDL.Nat,
     'periodNumber' : IDL.Nat,
+    'courseId' : IDL.Nat,
   });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
-  const UserProfile = IDL.Record({ 'name' : IDL.Text });
   const Time = IDL.Int;
-  const ClassRecord = IDL.Record({
+  const CourseRecord = IDL.Record({
     'id' : IDL.Nat,
     'name' : IDL.Text,
     'createdAt' : Time,
     'year' : IDL.Text,
   });
+  const UserProfile = IDL.Record({ 'name' : IDL.Text });
   const PeriodRecord = IDL.Record({
     'id' : IDL.Nat,
     'date' : IDL.Text,
     'createdAt' : Time,
     'summaryPrimary' : IDL.Text,
     'summarySecondary' : IDL.Text,
-    'classId' : IDL.Nat,
     'periodNumber' : IDL.Nat,
+    'courseId' : IDL.Nat,
   });
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addPeriod' : IDL.Func([PeriodInput], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'deleteCourse' : IDL.Func([IDL.Nat], [], []),
+    'getAllCourses' : IDL.Func([], [IDL.Vec(CourseRecord)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-    'getClass' : IDL.Func([IDL.Nat], [ClassRecord], ['query']),
+    'getCourse' : IDL.Func([IDL.Nat], [IDL.Opt(CourseRecord)], ['query']),
     'getPeriodsForDate' : IDL.Func(
         [IDL.Nat, IDL.Text],
         [IDL.Vec(PeriodRecord)],
@@ -111,7 +115,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-    'registerClass' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
+    'registerCourse' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   });
 };

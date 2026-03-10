@@ -1,51 +1,48 @@
-import Nat "mo:core/Nat";
-import Text "mo:core/Text";
-import Iter "mo:core/Iter";
-import Array "mo:core/Array";
-import Order "mo:core/Order";
 import Time "mo:core/Time";
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
+import Array "mo:core/Array";
+import Text "mo:core/Text";
+import Iter "mo:core/Iter";
 import List "mo:core/List";
+import Char "mo:core/Char";
+import Order "mo:core/Order";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
-import Migration "migration";
 
-// Persistent State and Migrations
-(with migration = Migration.run)
+
+// Apply migration on upgrade due to infra-only change
+
 actor {
-  // Persistent Counters for IDs
-  var classIdCounter = 0;
-  var periodIdCounter = 0;
-
-  // Authorization
-  let accessControlState = AccessControl.initState();
-  include MixinAuthorization(accessControlState);
-
-  // User Profile Type
+  // ----------------------------------------
+  // Type Definitions
+  // ----------------------------------------
   public type UserProfile = {
     name : Text;
   };
 
-  // Data Types
-  type ClassRecord = {
+  public type CourseRecord = {
     id : Nat;
     name : Text;
     year : Text;
     createdAt : Time.Time;
   };
 
-  module ClassRecord {
-    public func compare(record1 : ClassRecord, record2 : ClassRecord) : Order.Order {
-      Nat.compare(record1.id, record2.id);
+  module CourseRecord {
+    public func compare(a : CourseRecord, b : CourseRecord) : Order.Order {
+      switch (Text.compare(a.name, b.name)) {
+        case (#equal) { Text.compare(a.year, b.year) };
+        case (order) { order };
+      };
     };
   };
 
-  type PeriodRecord = {
+  public type PeriodRecord = {
     id : Nat;
-    classId : Nat;
-    date : Text;
+    courseId : Nat;
+    date : Text; // Format: YYYY-MM-DD
     periodNumber : Nat;
     summaryPrimary : Text;
     summarySecondary : Text;
@@ -53,32 +50,69 @@ actor {
   };
 
   module PeriodRecord {
-    public func compare(record1 : PeriodRecord, record2 : PeriodRecord) : Order.Order {
-      switch (Text.compare(record1.date, record2.date)) {
-        case (#equal) { Nat.compare(record1.periodNumber, record2.periodNumber) };
-        case (order) { order };
+    public func compare(a : PeriodRecord, b : PeriodRecord) : Order.Order {
+      if (a.courseId == b.courseId and a.date == b.date) {
+        Nat.compare(a.periodNumber, b.periodNumber);
+      } else {
+        switch (Text.compare(a.date, b.date)) {
+          case (#equal) { Nat.compare(a.courseId, b.courseId) };
+          case (order) { order };
+        };
       };
     };
   };
 
-  type PeriodInput = {
-    classId : Nat;
-    date : Text;
+  public type PeriodInput = {
+    courseId : Nat;
+    date : Text; // Format: YYYY-MM-DD
     periodNumber : Nat;
     summaryPrimary : Text;
     summarySecondary : Text;
   };
 
-  // Persistent Storage
-  let classes = Map.empty<Nat, ClassRecord>();
+  type Permission = {
+    #admin;
+    #user;
+  };
+
+  // ----------------------------------------
+  // Persistent State (stable = survives upgrades)
+  // ----------------------------------------
+  stable var periodIdCounter = 0;
+  stable var courseIdCounter = 0;
+
+  let courses = Map.empty<Nat, CourseRecord>();
   let periods = Map.empty<Nat, PeriodRecord>();
   let userProfiles = Map.empty<Principal, UserProfile>();
 
-  // User Profile Management
-  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access profiles");
+  let accessControlState = AccessControl.initState(); // Initialize access control state
+
+  // Include authorization mixin
+  include MixinAuthorization(accessControlState);
+
+  // ----------------------------------------
+  // Internal Utility Functions
+  // ----------------------------------------
+  func checkPermission(caller : Principal, permission : Permission) {
+    switch (permission) {
+      case (#admin) {
+        if (not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Admin privileges required");
+        };
+      };
+      case (#user) {
+        if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+          Runtime.trap("Unauthorized: User privileges required");
+        };
+      };
     };
+  };
+
+  // ----------------------------------------
+  // User Profile Management
+  // ----------------------------------------
+  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
+    checkPermission(caller, #user);
     userProfiles.get(caller);
   };
 
@@ -90,62 +124,135 @@ actor {
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
-    };
+    checkPermission(caller, #user);
     userProfiles.add(caller, profile);
   };
 
-  // Public Methods
-  public shared ({ caller }) func registerClass(name : Text, year : Text) : async Nat {
-    let classId = classIdCounter;
-    classIdCounter += 1;
-    let classRecord : ClassRecord = {
-      id = classId;
+  // ----------------------------------------
+  // Course Management
+  // ----------------------------------------
+  public shared ({ caller }) func registerCourse(name : Text, year : Text) : async Nat {
+    // Check for duplicate name/year (case-insensitive)
+    let nameLower = name.map(
+      func(c) {
+        if (c >= 'A' and c <= 'Z') {
+          Char.fromNat32(c.toNat32() + 32);
+        } else { c };
+      }
+    );
+    let yearLower = year.map(
+      func(c) {
+        if (c >= 'A' and c <= 'Z') {
+          Char.fromNat32(c.toNat32() + 32);
+        } else { c };
+      }
+    );
+
+    let isDuplicate = courses.values().find(
+      func(c) {
+        let courseNameLower = c.name.map(
+          func(c) {
+            if (c >= 'A' and c <= 'Z') {
+              Char.fromNat32(c.toNat32() + 32);
+            } else { c };
+          }
+        );
+        let courseYearLower = c.year.map(
+          func(c) {
+            if (c >= 'A' and c <= 'Z') {
+              Char.fromNat32(c.toNat32() + 32);
+            } else { c };
+          }
+        );
+        courseNameLower == nameLower and courseYearLower == yearLower
+      }
+    );
+
+    switch (isDuplicate) {
+      case (?_) { Runtime.trap("Course with name/year already exists") };
+      case (null) {};
+    };
+
+    // Use a stable counter for unique IDs (survives deletes and upgrades)
+    let newId = courseIdCounter;
+    courseIdCounter += 1;
+
+    let course = {
+      id = newId;
       name;
       year;
       createdAt = Time.now();
     };
-    classes.add(classId, classRecord);
-    classId;
+
+    courses.add(newId, course);
+    newId;
   };
 
-  public query ({ caller }) func getClass(classId : Nat) : async ClassRecord {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view classes");
+  public query ({ caller }) func getCourse(courseId : Nat) : async ?CourseRecord {
+    courses.get(courseId);
+  };
+
+  public query ({ caller }) func getAllCourses() : async [CourseRecord] {
+    courses.values().toArray();
+  };
+
+  // Allow both admins and regular users to delete courses
+  public shared ({ caller }) func deleteCourse(courseId : Nat) : async () {
+    let isAdmin = AccessControl.isAdmin(accessControlState, caller);
+    let isUser = AccessControl.hasPermission(accessControlState, caller, #user);
+    if (not isAdmin and not isUser) {
+      Runtime.trap("Unauthorized: Must be admin or user to delete a course");
     };
-    switch (classes.get(classId)) {
-      case (null) { Runtime.trap("Class not found") };
-      case (?classRecord) { classRecord };
+
+    switch (courses.get(courseId)) {
+      case (null) { Runtime.trap("Course does not exist") };
+      case (?_) {
+        courses.remove(courseId);
+
+        // Also remove all associated periods
+        let remainingPeriods = periods.toArray().filter(
+          func((k, v)) { v.courseId != courseId }
+        );
+
+        periods.clear();
+        for ((k, v) in remainingPeriods.values()) {
+          periods.add(k, v);
+        };
+      };
     };
   };
 
+  // ----------------------------------------
+  // Period Management
+  // ----------------------------------------
   public shared ({ caller }) func addPeriod(input : PeriodInput) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can add periods");
+    checkPermission(caller, #user);
+
+    switch (courses.get(input.courseId)) {
+      case (null) { Runtime.trap("Course does not exist") };
+      case (?_) {
+        let period = {
+          id = periodIdCounter;
+          courseId = input.courseId;
+          date = input.date;
+          periodNumber = input.periodNumber;
+          summaryPrimary = input.summaryPrimary;
+          summarySecondary = input.summarySecondary;
+          createdAt = Time.now();
+        };
+
+        periods.add(periodIdCounter, period);
+        periodIdCounter += 1;
+      };
     };
-    let classExists = classes.containsKey(input.classId);
-    if (not classExists) {
-      Runtime.trap("Class does not exist");
-    };
-    let periodId = periodIdCounter;
-    periodIdCounter += 1;
-    let periodRecord : PeriodRecord = {
-      id = periodId;
-      classId = input.classId;
-      date = input.date;
-      periodNumber = input.periodNumber;
-      summaryPrimary = input.summaryPrimary;
-      summarySecondary = input.summarySecondary;
-      createdAt = Time.now();
-    };
-    periods.add(periodId, periodRecord);
   };
 
-  public query ({ caller }) func getPeriodsForDate(classId : Nat, date : Text) : async [PeriodRecord] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view periods");
-    };
-    periods.values().filter(func(period) { period.classId == classId and period.date == date }).toArray().sort();
+  public query ({ caller }) func getPeriodsForDate(courseId : Nat, date : Text) : async [PeriodRecord] {
+    let filtered = periods.toArray().filter(
+      func((id, period)) { period.courseId == courseId and period.date == date }
+    );
+
+    let periodValues = filtered.map(func((id, period)) { period });
+    periodValues.sort();
   };
 };

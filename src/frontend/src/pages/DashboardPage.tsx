@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useClass } from "@/context/ClassContext";
 import { useGetPeriodsForDate } from "@/hooks/useQueries";
+import { encodeClassId } from "@/utils/classRegistry";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -59,7 +60,7 @@ export function DashboardPage() {
   const isPast = selectedDate < todayStr;
 
   const periodsQuery = useGetPeriodsForDate(
-    isPast ? classId : null,
+    isToday || isPast ? classId : null,
     selectedDate,
   );
 
@@ -120,8 +121,11 @@ export function DashboardPage() {
                 <Badge variant="secondary" className="font-medium text-xs">
                   Academic Year: {classYear}
                 </Badge>
-                <Badge variant="outline" className="font-mono text-xs">
-                  ID: {classId.toString()}
+                <Badge
+                  variant="outline"
+                  className="font-mono text-xs tracking-wider"
+                >
+                  ID: {encodeClassId(classId)}
                 </Badge>
               </div>
             </div>
@@ -167,23 +171,59 @@ export function DashboardPage() {
 
           <Separator className="mb-5" />
 
-          {/* Today — Record Option */}
+          {/* Today — Record Option + Recorded Periods */}
           {isToday && (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <div className="rounded-full bg-primary/10 p-4 mb-1">
-                <BookOpen className="h-8 w-8 text-primary" />
+            <div className="space-y-5">
+              <div className="flex flex-col items-center gap-3 py-6 text-center">
+                <div className="rounded-full bg-primary/10 p-4 mb-1">
+                  <BookOpen className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="font-display font-semibold text-lg text-foreground">
+                  Ready to Record?
+                </h3>
+                <p className="text-sm text-muted-foreground max-w-xs">
+                  Add a period entry for today's class with bilingual summaries.
+                </p>
+                <RecordClassDialog
+                  classId={classId}
+                  date={selectedDate}
+                  displayDate={formatDisplayDate(selectedDate)}
+                />
               </div>
-              <h3 className="font-display font-semibold text-lg text-foreground">
-                Ready to Record?
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                Add a period entry for today's class with bilingual summaries.
-              </p>
-              <RecordClassDialog
-                classId={classId}
-                date={selectedDate}
-                displayDate={formatDisplayDate(selectedDate)}
-              />
+
+              {/* Today's recorded periods */}
+              {periodsQuery.isLoading && (
+                <div
+                  className="space-y-3"
+                  data-ocid="dashboard.today_periods.loading_state"
+                >
+                  <Skeleton className="h-28 w-full rounded-xl" />
+                </div>
+              )}
+
+              {periodsQuery.isSuccess && periodsQuery.data.length > 0 && (
+                <div
+                  className="space-y-3"
+                  data-ocid="dashboard.today_periods.list"
+                >
+                  <p className="text-sm font-medium text-foreground">
+                    Today's recorded sessions ({periodsQuery.data.length} period
+                    {periodsQuery.data.length !== 1 ? "s" : ""})
+                  </p>
+                  {periodsQuery.data
+                    .slice()
+                    .sort(
+                      (a, b) => Number(a.periodNumber) - Number(b.periodNumber),
+                    )
+                    .map((period, idx) => (
+                      <PeriodCard
+                        key={period.id.toString()}
+                        period={period}
+                        index={idx + 1}
+                      />
+                    ))}
+                </div>
+              )}
             </div>
           )}
 

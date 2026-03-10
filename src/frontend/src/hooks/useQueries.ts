@@ -1,60 +1,74 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ClassRecord, PeriodInput, PeriodRecord } from "../backend.d.ts";
+import type { CourseRecord, PeriodInput, PeriodRecord } from "../backend.d.ts";
 import { useActor } from "./useActor";
 
-// ─── Class Queries ───────────────────────────────────────────
+// ─── Course Queries ──────────────────────────────────────────
 
-export function useGetClass(classId: bigint | null) {
+export function useGetCourse(courseId: bigint | null) {
   const { actor, isFetching } = useActor();
-  return useQuery<ClassRecord | null>({
-    queryKey: ["class", classId?.toString()],
+  return useQuery<CourseRecord | null>({
+    queryKey: ["course", courseId?.toString()],
     queryFn: async () => {
-      if (!actor || classId === null) return null;
+      if (!actor || courseId === null) return null;
       try {
-        const result = await actor.getClass(classId);
+        const result = await actor.getCourse(courseId);
         return result;
       } catch {
         return null;
       }
     },
-    enabled: !!actor && !isFetching && classId !== null,
+    enabled: !!actor && !isFetching && courseId !== null,
+    staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false,
   });
 }
 
-export function useRegisterClass() {
+export function useRegisterCourse() {
   const { actor } = useActor();
   return useMutation<bigint, Error, { name: string; year: string }>({
     mutationFn: async ({ name, year }) => {
       if (!actor) throw new Error("Not connected");
-      return actor.registerClass(name, year);
+      return actor.registerCourse(name, year);
     },
   });
 }
 
-export function useLoginClass() {
+export function useLoginCourse() {
   const { actor } = useActor();
-  return useMutation<ClassRecord, Error, bigint>({
-    mutationFn: async (classId) => {
+  return useMutation<CourseRecord, Error, bigint>({
+    mutationFn: async (courseId) => {
       if (!actor) throw new Error("Not connected");
-      const result = await actor.getClass(classId);
+      const result = await actor.getCourse(courseId);
       if (!result) throw new Error("Invalid Class ID");
       return result;
     },
   });
 }
 
+export function useGetAllCourses() {
+  const { actor, isFetching } = useActor();
+  return useQuery<CourseRecord[]>({
+    queryKey: ["courses"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllCourses();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
 // ─── Period Queries ──────────────────────────────────────────
 
-export function useGetPeriodsForDate(classId: bigint | null, date: string) {
+export function useGetPeriodsForDate(courseId: bigint | null, date: string) {
   const { actor, isFetching } = useActor();
   return useQuery<PeriodRecord[]>({
-    queryKey: ["periods", classId?.toString(), date],
+    queryKey: ["periods", courseId?.toString(), date],
     queryFn: async () => {
-      if (!actor || classId === null || !date) return [];
-      return actor.getPeriodsForDate(classId, date);
+      if (!actor || courseId === null || !date) return [];
+      return actor.getPeriodsForDate(courseId, date);
     },
-    enabled: !!actor && !isFetching && classId !== null && !!date,
+    enabled: !!actor && !isFetching && courseId !== null && !!date,
+    staleTime: 30 * 1000, // 30 seconds -- show cached data instantly, refresh in background
   });
 }
 
@@ -68,8 +82,22 @@ export function useAddPeriod() {
     },
     onSuccess: (_, input) => {
       queryClient.invalidateQueries({
-        queryKey: ["periods", input.classId.toString(), input.date],
+        queryKey: ["periods", input.courseId.toString(), input.date],
       });
+    },
+  });
+}
+
+export function useDeleteCourse() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, bigint>({
+    mutationFn: async (courseId) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deleteCourse(courseId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
     },
   });
 }

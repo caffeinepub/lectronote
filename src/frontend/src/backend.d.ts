@@ -11,16 +11,16 @@ export interface PeriodInput {
     date: string;
     summaryPrimary: string;
     summarySecondary: string;
-    classId: bigint;
     periodNumber: bigint;
+    courseId: bigint;
 }
-export interface ClassRecord {
+export type Time = bigint;
+export interface CourseRecord {
     id: bigint;
     name: string;
     createdAt: Time;
     year: string;
 }
-export type Time = bigint;
 export interface UserProfile {
     name: string;
 }
@@ -30,8 +30,8 @@ export interface PeriodRecord {
     createdAt: Time;
     summaryPrimary: string;
     summarySecondary: string;
-    classId: bigint;
     periodNumber: bigint;
+    courseId: bigint;
 }
 export enum UserRole {
     admin = "admin",
@@ -41,12 +41,14 @@ export enum UserRole {
 export interface backendInterface {
     addPeriod(input: PeriodInput): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    deleteCourse(courseId: bigint): Promise<void>;
+    getAllCourses(): Promise<Array<CourseRecord>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
-    getClass(classId: bigint): Promise<ClassRecord>;
-    getPeriodsForDate(classId: bigint, date: string): Promise<Array<PeriodRecord>>;
+    getCourse(courseId: bigint): Promise<CourseRecord | null>;
+    getPeriodsForDate(courseId: bigint, date: string): Promise<Array<PeriodRecord>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
-    registerClass(name: string, year: string): Promise<bigint>;
+    registerCourse(name: string, year: string): Promise<bigint>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
 }
