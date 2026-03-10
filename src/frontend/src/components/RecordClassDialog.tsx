@@ -173,20 +173,19 @@ export function RecordClassDialog({
     recognizer.onend = () => {
       setInterimTranscript("");
       // If we're still in recording state, the browser auto-stopped after a pause.
-      // Restart immediately to keep continuous recording.
+      // Restart the SAME recognizer instance (not a new one) to avoid duplicate
+      // results -- re-creating a recognizer resets resultIndex to 0 and causes
+      // previously accumulated words to be re-delivered and duplicated.
       if (stageRef.current === "recording") {
-        try {
-          const next = createAndStartRecognizer;
-          // Short delay to avoid rapid restart loops
-          setTimeout(() => {
-            if (stageRef.current === "recording") {
-              recognizerRef.current = null;
-              next();
+        setTimeout(() => {
+          if (stageRef.current === "recording" && recognizerRef.current) {
+            try {
+              recognizerRef.current.start();
+            } catch {
+              // ignore restart errors (e.g. already started)
             }
-          }, 150);
-        } catch {
-          // ignore restart errors
-        }
+          }
+        }, 150);
       }
     };
 
